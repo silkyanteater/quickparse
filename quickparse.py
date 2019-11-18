@@ -17,6 +17,14 @@ class QuickParse(object):
 	def __init__(self, *args, **kwargs):
 		self.reparse(*args, **kwargs)
 
+	def __str__(self):
+		components = dict()
+		components['numericflag'] = self.numericflag
+		components['flags'] = self.flags
+		components['subcommands'] = self.subcommands
+		components['parameters'] = self.parameters
+		return str(components)
+
 	def reparse(self, *args, **kwargs):
 
 		def set_up_config(*args, **kwargs):
