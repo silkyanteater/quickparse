@@ -1,8 +1,32 @@
 import sys
 import re
+from copy import deepcopy
+
+from pprint import pprint as pp
+from pprint import pformat as pf
+from pdb import set_trace as trace
 
 numericflag_re = re.compile('^-\\d+$')
 
+
+# lib
+
+def get_all_strings_from_nested_structure(nested, theset):
+	if isinstance(nested, str):
+		if len(nested) > 0:
+			theset = theset.union({nested,})
+	elif isinstance(nested, int):
+		theset = theset.union({str(nested),})
+	elif isinstance(nested, (list, tuple, set)):
+		if len(nested) > 0:
+			for item in nested:
+				theset = get_all_strings_from_nested_structure(item, theset)
+	else:
+		raise TypeError('nested structure contains items other than strings')
+	return theset
+
+
+# classes
 
 class QuickParse(object):
 
@@ -19,17 +43,22 @@ class QuickParse(object):
 
 	def __str__(self):
 		components = dict()
+		components['config'] = self.config
+		components['command'] = self.command
 		components['numericflag'] = self.numericflag
 		components['flags'] = self.flags
 		components['subcommands'] = self.subcommands
 		components['parameters'] = self.parameters
-		return str(components)
+		return pf(components)
 
 	def reparse(self, *args, **kwargs):
 
 		def set_up_config(*args, **kwargs):
-			self.config = dict()
-			self.config['subcommands'] = args
+			if len(args) == 1 and isinstance(args[0], dict):
+				self.config = deepcopy(args[0])
+			else:
+				self.config = dict()
+				self.config['subcommands'] = get_all_strings_from_nested_structure(args, set())
 
 		def set_single_numericflag_if_dash_plus_digits(argument):
 			if numericflag_re.search(argument):
