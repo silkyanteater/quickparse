@@ -1,113 +1,81 @@
 import sys
-import re
-from copy import deepcopy
 
-from pprint import pprint as pp
-from pprint import pformat as pf
-from pdb import set_trace as trace
+from .lib import validate_commands_config, validate_params_config, humblecall, get_arg_type, get_params_equivalency_from_config
 
-numericflag_re = re.compile('^-\\d+$')
-
-
-# lib
-
-def get_all_strings_from_nested_structure(nested, theset):
-	if isinstance(nested, str):
-		if len(nested) > 0:
-			theset = theset.union({nested,})
-	elif isinstance(nested, int):
-		theset = theset.union({str(nested),})
-	elif isinstance(nested, (list, tuple, set)):
-		if len(nested) > 0:
-			for item in nested:
-				theset = get_all_strings_from_nested_structure(item, theset)
-	else:
-		raise TypeError('nested structure contains items other than strings')
-	return theset
-
-
-# classes
 
 class QuickParse(object):
 
-	config = None
-	command = None
-	numericflag = None
-	flags = None
-	subcommands = None
-	parameters = None
-	is_empty = None
+    raw_args = None
+    commands_config = None
+    params_config = None
+    commands = list()
+    params = dict()
+    numeric = None
+    plusnumeric = None
 
-	def __init__(self, *args, **kwargs):
-		self.reparse(*args, **kwargs)
+    _params_equivalency = dict()
+    _to_execute = list()
 
-	def __str__(self):
-		components = dict()
-		components['config'] = self.config
-		components['command'] = self.command
-		components['numericflag'] = self.numericflag
-		components['flags'] = self.flags
-		components['subcommands'] = self.subcommands
-		components['parameters'] = self.parameters
-		return pf(components)
+    def __init__(self, *, commands = None, params = None, cli_args = None):
+        if cli_args is None:
+            self.raw_args = sys.argv[:]
+        else:
+            if not (isinstance(cli_args, (list, tuple)) and all(isinstance(element, str) for element in cli_args)):
+                raise ValueError(f"cli_args must be a list of strings")
+            self.raw_args = cli_args[:]
+        self.commands_config = commands or dict()
+        self.params_config = params or tuple()
+        try:
+            validate_commands_config(self.commands_config)
+            validate_params_config(self.params_config)
+        except AssertionError as ae:
+            raise ValueError(ae)
+        self._params_equivalency = get_params_equivalency_from_config(self.params_config)
+        self._process_args()
 
-	def reparse(self, *args, **kwargs):
+    def execute(self, *args, **kwargs):
+        return_values = list()
+        if isinstance(self._to_execute, list):
+            for try_to_call in self._to_execute:
+                return_values.append(humblecall(try_to_call, args, kwargs))
+        else:
+            return_values = humblecall(self._to_execute, args, kwargs)
+        return return_values
 
-		def set_up_config(*args, **kwargs):
-			if len(args) == 1 and isinstance(args[0], dict):
-				self.config = deepcopy(args[0])
-			else:
-				self.config = dict()
-				self.config['subcommands'] = get_all_strings_from_nested_structure(args, set())
-
-		def set_single_numericflag_if_dash_plus_digits(argument):
-			if numericflag_re.search(argument):
-				if self.numericflag:
-					raise Exception('only one numeric flag is allowed')
-				self.numericflag = int(argument[1:])
-				return True
-			return False
-
-		def add_to_flags_if_dash_plus_single_char(argument):
-			if len(argument) == 2 and argument[0] == '-':
-				self.flags = self.flags.union({argument[1]})
-				return True
-			return False
-
-		def add_to_flags_if_double_dash_plus_string(argument):
-			if len(argument) > 2 and argument[0:2] == '--':
-				self.flags = self.flags.union({argument[2:]})
-				return True
-			return False
-
-		def add_to_subcommands_if_on_the_list(argument):
-			if argument in self.config['subcommands']:
-				self.subcommands += (argument, )
-				return True
-			return False
-
-		def add_to_parameters(argument):
-			self.parameters += (argument, )
-			return True
-
-		set_up_config(*args, **kwargs)
-
-		self.command = sys.argv[0]
-		self.numericflag = None
-		self.flags = set()
-		self.subcommands = tuple()
-		self.parameters = tuple()
-		self.is_empty = len(sys.argv) <= 1
-
-		for argument in sys.argv[1:]:
-			for fn in (
-				set_single_numericflag_if_dash_plus_digits,
-				add_to_flags_if_dash_plus_single_char,
-				add_to_flags_if_double_dash_plus_string,
-				add_to_subcommands_if_on_the_list,
-				add_to_parameters,
-			):
-				if fn(argument):
-					break
-
-		return self
+    def _process_args(self):
+        command_level = self.commands_config
+        arg_index = 0
+        while arg_index < len(self.raw_args):
+            arg = self.raw_args[arg_index]
+            arg_index += 1
+            arg_type = get_arg_type(arg)
+            if arg_type in ('minus letter block', 'plus letter block') and arg not in self._params_equivalency:
+                for letter in arg[1:]:
+                    flag = f"{arg[0]}{letter}"
+                    if flag in self._params_equivalency:
+                        if self._params_equivalency[flag]['type'] != bool:
+                            raise RuntimeError(f"{flag} found in block parameter while expecting {self._params_equivalency[flag]['type']} value")
+                        for eq_param in self._params_equivalency[flag]['equivalents']:
+                            self.params[eq_param] = True
+                    else:
+                        self.params[flag] = True
+            if arg_type in ('minus char', 'plus char', 'minus string', 'doubleminus string'):
+                # TODO: check params_config if it expects value and process it
+                pass
+            if arg_type == 'minus numeric':
+                pass
+            if arg_type == 'plus numeric':
+                pass
+            if arg_type == 'param or command':
+                if arg in command_level:
+                    self.commands.append(arg)
+                    if isinstance(command_level[arg], dict):
+                        command_level = command_level[arg]
+                    else:
+                        if isinstance(command_level[arg], (list, tuple)):
+                            self._to_execute = list(command_level[arg])
+                        else:
+                            self._to_execute = command_level[arg]
+                        command_level = dict()
+                else:
+                    self.params.append(arg)
