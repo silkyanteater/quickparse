@@ -6,6 +6,8 @@ named parameters (like '--name Steve') with type
 minus numeric flags
 plus numeric flags
 -- (only parameters after that)
+
+add validator object and a way to direct those invalid calls to an error handler of that command
 '''
 
 parameters = {
@@ -16,9 +18,10 @@ parameters = {
 
 
 onNoCommand = onClear = onUser = onUserList = onUserAdd = onUserDel = onLoad = onStageList = onStageDrop = onTree = lambda: None
+validateNoCommand = lambda: None
 
 command_map = {
-    '': onNoCommand,
+    '': (validateNoCommand, onNoCommand),  # validator
     'clear': onClear,
     'user': (onUser, {
         ('list', 'ls'): onUserList,
