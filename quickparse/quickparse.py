@@ -1,6 +1,6 @@
 import sys
 
-from .lib import validate_commands_config, validate_attrs_config, humblecall, get_arg_type, get_attrs_equivalency_from_config
+from .lib import validate_commands_config, validate_attrs_config, humblecall, get_arg_type, get_attrs_equivalency_from_config, expand_commands_config_keys
 
 
 class QuickParse(object):
@@ -24,14 +24,19 @@ class QuickParse(object):
             if not (isinstance(cli_args, (list, tuple)) and all(isinstance(element, str) for element in cli_args)):
                 raise ValueError(f"cli_args must be a list of strings")
             self.raw_args = cli_args[:]
-        self.commands_config = commands_config or dict()
+        if commands_config is None:
+            self.commands_config = dict()
+        elif not isinstance(commands_config, dict):
+            self.commands_config = { '': commands_config }
+        else:
+            self.commands_config = commands_config
         self.attrs_config = attrs_config or tuple()
         try:
             validate_commands_config(self.commands_config)
             validate_attrs_config(self.attrs_config)
         except AssertionError as ae:
-            raise ValueError(ae)
-        # TODO: expand keys in commands_config
+            raise ValueError(ae) from ae
+        self.commands_config = expand_commands_config_keys(self.commands_config)
         self._attrs_equivalency = get_attrs_equivalency_from_config(self.attrs_config)
         self._process_args()
 

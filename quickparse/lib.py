@@ -12,8 +12,32 @@ doubleminus_string_re = re.compile('^--[^-].*$')
 
 
 def validate_commands_config(commands_config):
-    assert isinstance(commands_config, dict), f"Dict expedted as params config"
-    # TODO: validate commands - one command occurs only once at a level / no ambiguous command
+    _validate_key_instances_and_types(commands_config)
+
+def _validate_key_instances_and_types(commands_config):
+    keys = tuple(commands_config.keys())
+    all_keys = list()
+    for key in keys:
+        if isinstance(key, tuple):
+            for key_elem in key:
+                if isinstance(key_elem, str):
+                    if key_elem in all_keys:
+                        raise AssertionError(f"Duplicate key in commands config: {key_elem}")
+                    else:
+                        all_keys.append(key_elem)
+                else:
+                    raise AssertionError(f"Invalid key in commands config: {key_elem}")
+        elif isinstance(key, str):
+            if key in all_keys:
+                raise AssertionError(f"Duplicate key in commands config: {key}")
+            else:
+                all_keys.append(key)
+        else:
+            raise AssertionError(f"Invalid key in commands config: {key}")
+    for key in keys:
+        if isinstance(commands_config[key], dict):
+            _validate_key_instances_and_types(commands_config[key])
+
 
 def validate_attrs_config(attrs_config):
     params = list()
@@ -119,3 +143,19 @@ def get_attrs_equivalency_from_config(attrs_config):
         for eq_param in equivalent_params:
             attrs_equivalency[eq_param] = equivalency
     return attrs_equivalency
+
+def expand_commands_config_keys(commands_config):
+    expanded_commands_config = dict()
+    for key, value in commands_config.items():
+        if isinstance(key, tuple):
+            for key_elem in key:
+                expanded_commands_config[key_elem] = value
+        else:
+            expanded_commands_config[key] = value
+    deep_expanded_commands_config = dict()
+    for key, value in expanded_commands_config.items():
+        if isinstance(value, dict):
+            deep_expanded_commands_config[key] = expand_commands_config_keys(value)
+        else:
+            deep_expanded_commands_config[key] = value
+    return deep_expanded_commands_config
