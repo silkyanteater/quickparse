@@ -15,10 +15,10 @@ def validate_commands_config(commands_config):
     assert isinstance(commands_config, dict), f"Dict expedted as params config"
     # TODO: validate commands - one command occurs only once at a level / no ambiguous command
 
-def validate_params_config(params_config):
+def validate_attrs_config(attrs_config):
     params = list()
-    assert isinstance(params_config, (list, tuple)), f"List expedted as params config, got this: {params}"
-    for equivalents in params_config:
+    assert isinstance(attrs_config, (list, tuple)), f"List expedted as params config, got this: {params}"
+    for equivalents in attrs_config:
         assert isinstance(equivalents, (list, tuple)), f"List expedted as params config item, got this {equivalents}"
         type_count = 0
         for equivalent in equivalents:
@@ -110,12 +110,12 @@ def get_arg_type(arg):
         return 'doubleminus string'
     return 'param or command'
 
-def get_params_equivalency_from_config(params_config):
-    params_equivalency = dict()
-    for equivalents in params_config:
+def get_attrs_equivalency_from_config(attrs_config):
+    attrs_equivalency = dict()
+    for equivalents in attrs_config:
         param_type = ([eq for eq in equivalents if isinstance(eq, type)] or [bool])[0]
         equivalent_params = tuple(eq for eq in equivalents if isinstance(eq, str))
         equivalency = {'type': param_type, 'equivalents': equivalent_params}
         for eq_param in equivalent_params:
-            params_equivalency[eq_param] = equivalency
-    return params_equivalency
+            attrs_equivalency[eq_param] = equivalency
+    return attrs_equivalency

@@ -13,7 +13,7 @@ plus numeric flags
 add validator object and a way to direct those invalid calls to an error handler of that command
 '''
 
-params = [
+attrs_config = [
     ('-a', '--all'),
     ('-l', '-long', '--long', bool),  # same as without 'bool'
     ('-n', '-name', '--name', str),
@@ -25,7 +25,7 @@ func_names1 = \
 for item in func_names1:
     globals()[item] = (lambda s: lambda: s)(item)
 
-commands1 = {
+commands_config_1 = {
     '': (validateNoCommand, onNoCommand),
     'user': (onUser, {
         ('list', 'ls'): onUserList,
@@ -46,9 +46,9 @@ func_names2 = \
     ['show_help', 'user_list', 'user_add', 'user_del', 'user_select', 'stage_show', 'stage_drop', 'branch_getall', 'branch_add'] + \
     ['branch_move', 'branch_remove', 'import_space', 'export_all', 'export_trees', 'export_gems']
 for item in func_names2:
-    globals()[item] = (lambda s: lambda(*args): s)(item)
+    globals()[item] = (lambda s: lambda: s)(item)
 
-commands2 = {
+commands_config_2 = {
     'h': show_help,
     'user': {
         '': user_select,
@@ -77,15 +77,16 @@ commands2 = {
 def test_basics():
     with pytest.raises(ValueError):
         cli_args = [()]
-        parsed = QuickParse(commands=commands1, params=params, cli_args=cli_args)
+        parsed = QuickParse(commands_config_1, attrs_config, cli_args=cli_args)
     cli_args = []
-    parsed = QuickParse(commands=commands1, params=params, cli_args=cli_args)
+    parsed = QuickParse(commands_config_1, attrs_config, cli_args=cli_args)
     assert isinstance(getattr(parsed, 'raw_args', None), list)
     assert isinstance(getattr(parsed, 'commands', None), list)
-    assert isinstance(getattr(parsed, 'params', None), dict)
+    assert isinstance(getattr(parsed, 'params', None), list)
+    assert isinstance(getattr(parsed, 'attrs', None), dict)
     assert callable(getattr(parsed, 'execute', None))
 
 def test_commands_config():
     cli_args = ['h']
-    parsed = QuickParse(commands=commands2, cli_args=cli_args)
+    parsed = QuickParse(commands_config_2, cli_args=cli_args)
     assert parsed.execute() == 'show_help'
