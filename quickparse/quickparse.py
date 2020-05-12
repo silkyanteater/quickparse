@@ -12,9 +12,9 @@ class QuickParse(object):
     params = dict()
     numeric = None
     plusnumeric = None
+    to_execute = None
 
     _params_equivalency = dict()
-    _to_execute = list()
 
     def __init__(self, *, commands = None, params = None, cli_args = None):
         if cli_args is None:
@@ -37,7 +37,7 @@ class QuickParse(object):
         return_values = list()
         if isinstance(self._to_execute, list):
             for try_to_call in self._to_execute:
-                return_values.append(humblecall(try_to_call, args, kwargs))
+                return_values.append(humblecall(try_to_call, *args, **kwargs))
         else:
             return_values = humblecall(self._to_execute, args, kwargs)
         return return_values

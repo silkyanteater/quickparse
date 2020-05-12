@@ -32,7 +32,7 @@ def validate_params_config(params_config):
                 type_count += 1
                 assert type_count <= 1, f"More than one type found here: {equivalents}"
 
-def humblecall(func, args, kwargs):
+def humblecall(func, *args, **kwargs):
     if not callable(func):
         return func
     args = list(args)

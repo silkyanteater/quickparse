@@ -41,11 +41,12 @@ commands1 = {
     ('branch', 'br'): onBranch,
 }
 
+
 func_names2 = \
     ['show_help', 'user_list', 'user_add', 'user_del', 'user_select', 'stage_show', 'stage_drop', 'branch_getall', 'branch_add'] + \
     ['branch_move', 'branch_remove', 'import_space', 'export_all', 'export_trees', 'export_gems']
 for item in func_names2:
-    globals()[item] = (lambda s: lambda: s)(item)
+    globals()[item] = (lambda s: lambda(*args): s)(item)
 
 commands2 = {
     'h': show_help,
