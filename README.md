@@ -1,5 +1,28 @@
-# quickparse
+# QuickParse
 Simple command line argument parser for Python
+
+list_things.py:
+```python
+from quickparse import QuickParse
+
+def list_things(a_list, quickparse):
+    print(', '.join(map(str, a_list[:quickparse.numeric])))
+
+commands_config = {
+    'ls': list_things,
+    '': lambda: print(f"Unknown command"),
+}
+
+mylist = list(range(1, 12))
+
+QuickParse(commands_config).execute(mylist)
+```
+
+Run it:
+```sh
+$ python list_things.py ls -5
+1, 2, 3, 4, 5
+```
 
 # Supported argument setups
 [command] [subcommand]  $ git log
