@@ -1,14 +1,23 @@
 import inspect
 import re
 
-minus_numeric_re = re.compile('^-\\d+$')
-plus_numeric_re = re.compile('^\\+\\d+$')
-minus_letter_re = re.compile('^-\\w$')
-plus_letter_re = re.compile('^\\+\\w$')
-minus_letter_block_re = re.compile('^-\\w+$')
-plus_letter_block_re = re.compile('^\\+\\w+$')
-minus_string_re = re.compile('^-[^-].*$')
-doubleminus_string_re = re.compile('^--[^-].*$')
+
+attr_re = re.compile(r'^(-\w[\w-]*|--\w[\w-]*|\+\w[\w-]*)$')
+
+arg_res_def = (
+    ('minus numeric', r'^-\d+$'),
+    ('plus numeric', r'^\+\d+$'),
+    ('minus letter', r'^-\w$'),
+    ('plus letter', r'^\+\w$'),
+    ('minus letter block', r'^-\w{2,}$'),
+    ('plus letter block', r'^\+\w{2,}$'),
+    ('minus key equals value', r'^-[\w-]+=.*$'),
+    ('plus key equals value', r'^\+[\w-]+=.*$'),
+    ('doubleminus key equals value', r'^--[^-][\w-]+=.*$'),
+    ('doubleminus string', r'^--[^-].*$'),
+    ('param or command', r'.*'),
+)
+arg_res = tuple(map(lambda x: {'type': x[0], 're': re.compile(x[1])}, arg_res_def))
 
 
 def validate_commands_config(commands_config):
@@ -47,11 +56,12 @@ def validate_attrs_config(attrs_config):
         type_count = 0
         for equivalent in equivalents:
             if isinstance(equivalent, str):
-                assert equivalent.startswith('-') or equivalent.startswith('+'), f"Parameters must start with '-' or '+', got this: {equivalent}"
-                assert equivalent not in params, f"Parameter found multiple times in params config: {equivalent}"
-                params.append(equivalent)
+                equivalent_stripped = equivalent.strip()
+                assert attr_re.match(equivalent_stripped) is not None , f"Valid attribute formats: '-*', '--*' or '+*', got this: {equivalent}"
+                assert equivalent_stripped not in params, f"Attribute found multiple times in params config: {equivalent_stripped}"
+                params.append(equivalent_stripped)
             elif equivalent not in (bool, int, float, str):
-                raise AssertionError(f"Strings or types (bool, int, float, str) are accepted in a params config item, got this: {equivalent}")
+                raise AssertionError(f"Strings or types (bool, int, float, str) are accepted in an attribute config item, got this: {equivalent}")
             else:
                 type_count += 1
                 assert type_count <= 1, f"More than one type found here: {equivalents}"
@@ -116,31 +126,18 @@ def _get_func_signature_data(func):
     return positional_only_args, positional_or_keyword_args, has_positional_var, keyword_only_args, has_keyword_var
 
 def get_arg_type(arg):
-    if minus_numeric_re.match(arg):
-        return 'minus numeric'
-    if plus_numeric_re.match(arg):
-        return 'plus numeric'
-    if minus_letter_re.match(arg):
-        return 'minus letter'
-    if plus_letter_re.match(arg):
-        return 'plus letter'
-    if minus_letter_block_re.match(arg):
-        return 'minus letter block'
-    if plus_letter_block_re.match(arg):
-        return 'plus letter block'
-    if minus_string_re.match(arg):
-        return 'minus string'
-    if doubleminus_string_re.match(arg):
-        return 'doubleminus string'
-    return 'param or command'
+    for arg_re in arg_res:
+        if arg_re['re'].match(arg) is not None:
+            return arg_re['type']
+    raise RuntimeError(f"Incomplete regular expression coverage of argument {arg}")
 
 def get_attrs_equivalency_from_config(attrs_config):
     attrs_equivalency = dict()
     for equivalents in attrs_config:
-        param_type = ([eq for eq in equivalents if isinstance(eq, type)] or [bool])[0]
-        equivalent_params = tuple(eq for eq in equivalents if isinstance(eq, str))
-        equivalency = {'type': param_type, 'equivalents': equivalent_params}
-        for eq_param in equivalent_params:
+        attr_type = ([eq for eq in equivalents if isinstance(eq, type)] or [bool])[0]
+        equivalent_attrs = tuple(eq.strip() for eq in equivalents if isinstance(eq, str))
+        equivalency = {'type': attr_type, 'equivalents': equivalent_attrs}
+        for eq_param in equivalent_attrs:
             attrs_equivalency[eq_param] = equivalency
     return attrs_equivalency
 

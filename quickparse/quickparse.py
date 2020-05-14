@@ -1,6 +1,13 @@
 import sys
 
-from .lib import validate_commands_config, validate_attrs_config, humblecall, get_arg_type, get_attrs_equivalency_from_config, expand_commands_config_keys
+from .lib import (
+    validate_commands_config,
+    validate_attrs_config,
+    humblecall,
+    get_arg_type,
+    get_attrs_equivalency_from_config,
+    expand_commands_config_keys,
+)
 
 
 class QuickParse(object):
@@ -16,6 +23,8 @@ class QuickParse(object):
     to_execute = None
 
     _attrs_equivalency = dict()
+    _unpack_minus_letter_blocks = True
+    _unpack_plus_letter_blocks = True
 
     def __init__(self, commands_config = None, attrs_config = None, *, cli_args = None):
         if cli_args is None:
@@ -38,6 +47,8 @@ class QuickParse(object):
             raise ValueError(ae) from ae
         self.commands_config = expand_commands_config_keys(self.commands_config)
         self._attrs_equivalency = get_attrs_equivalency_from_config(self.attrs_config)
+        self._unpack_minus_letter_blocks = not any(get_arg_type(attr) == 'minus letter block' for attr in self._attrs_equivalency)
+        self._unpack_plus_letter_blocks = not any(get_arg_type(attr) == 'plus letter block' for attr in self._attrs_equivalency)
         self._process_args()
 
     def execute(self, *args, **kwargs):
@@ -57,24 +68,68 @@ class QuickParse(object):
             arg = self.raw_args[arg_index]
             arg_index += 1
             arg_type = get_arg_type(arg)
-            if arg_type in ('minus letter block', 'plus letter block') and arg not in self._attrs_equivalency:
-                for letter in arg[1:]:
-                    flag = f"{arg[0]}{letter}"
-                    if flag in self._attrs_equivalency:
-                        if self._attrs_equivalency[flag]['type'] != bool:
-                            raise RuntimeError(f"{flag} found in block parameter while expecting {self._attrs_equivalency[flag]['type']} value")
-                        for eq_param in self._attrs_equivalency[flag]['equivalents']:
-                            self.attrs[eq_param] = True
-                    else:
-                        self.attrs[flag] = True
-            if arg_type in ('minus char', 'plus char', 'minus string', 'doubleminus string'):
-                # TODO: check attrs_config if it expects value and process it
-                pass
+
             if arg_type == 'minus numeric':
                 self.numeric = int(arg[1:])
-            if arg_type == 'plus numeric':
+
+            elif arg_type == 'plus numeric':
                 self.plusnumeric = int(arg[1:])
-            if arg_type == 'param or command':
+
+            elif arg_type in ('minus letter', 'plus letter', 'doubleminus string'):
+                if arg not in self._attrs_equivalency or self._attrs_equivalency[arg]['type'] == bool:
+                    self._add_attr_equivalents(arg, True)
+                else:
+                    type = self._attrs_equivalency[arg]['type']
+                    if arg_index >= len(self.raw_args):
+                        raise RuntimeError(f"No value got for '{arg}', expected {type.__name__}")
+                    next_arg = self.raw_args[arg_index]
+                    arg_index += 1
+                    self._add_attr_equivalents(arg, type(next_arg))
+
+            elif (arg_type == 'minus letter block' and self._unpack_minus_letter_blocks) or \
+                (arg_type == 'plus letter block' and self._unpack_plus_letter_blocks):
+                if arg in self._attrs_equivalency:
+                    if self._attrs_equivalency[arg]['type'] == bool:
+                        self._add_attr_equivalents(arg, True)
+                    else:
+                        type = self._attrs_equivalency[arg]['type']
+                        if arg_index >= len(self.raw_args):
+                            raise RuntimeError(f"No value got for '{arg}', expected {type.__name__}")
+                        next_arg = self.raw_args[arg_index]
+                        arg_index += 1
+                        self._add_attr_equivalents(arg, type(next_arg))
+                else:
+                    prefix = arg[0]
+                    for letter in arg[1:]:
+                        flag = f"{prefix}{letter}"
+                        if flag in self._attrs_equivalency and self._attrs_equivalency[flag]['type'] != bool:
+                            raise RuntimeError(f"{flag} found in block parameter while expecting {self._attrs_equivalency[flag]['type']} value")
+                        self._add_attr_equivalents(flag, True)
+
+            elif arg in self._attrs_equivalency:
+                if self._attrs_equivalency[arg]['type'] == bool:
+                    self._add_attr_equivalents(arg, True)
+                else:
+                    type = self._attrs_equivalency[arg]['type']
+                    if arg_index >= len(self.raw_args):
+                        raise RuntimeError(f"No value got for '{arg}', expected {type.__name__}")
+                    next_arg = self.raw_args[arg_index]
+                    arg_index += 1
+                    self._add_attr_equivalents(arg, type(next_arg))
+
+            elif arg_type in ('minus key equals value', 'plus key equals value', 'doubleminus key equals value'):
+                key_and_value = arg.split('=')
+                if len(key_and_value) != 2:
+                    raise RuntimeError(f"Invalid argument: {key_and_value}")
+                if key_and_value[1] == '':
+                    raise RuntimeError(f"No value given for {key_and_value[0]}")
+                if arg not in self._attrs_equivalency or self._attrs_equivalency[arg]['type'] == bool:
+                    self._add_attr_equivalents(key_and_value[0], True)
+                else:
+                    type = self._attrs_equivalency[arg]['type']
+                    self._add_attr_equivalents(key_and_value[0], type(key_and_value[1]))
+
+            elif arg_type == 'param or command':
                 if arg in command_level:
                     self.commands.append(arg)
                     if isinstance(command_level[arg], dict):
@@ -87,6 +142,7 @@ class QuickParse(object):
                         command_level = dict()
                 else:
                     self.params.append(arg)
+
         while isinstance(command_level.get('', None), dict):
             command_level = command_level['']
         if '' in command_level:
@@ -94,3 +150,9 @@ class QuickParse(object):
                 self.to_execute = list(command_level[''])
             else:
                 self.to_execute = command_level['']
+
+    def _add_attr_equivalents(attr, value):
+        self.attrs[attr] = value
+        if attr in self._add_attr_equivalents:
+            for eq_param in self._attrs_equivalency[attr]['equivalents']:
+                self.attrs[eq_param] = value
