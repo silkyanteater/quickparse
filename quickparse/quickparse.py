@@ -13,39 +13,19 @@ from .lib import (
 
 class QuickParse(object):
 
-    args = None
-    commands_config = None
-    options_config = None
-
-    commands = list()
-    parameters = list()
-    options = dict()
-    numeric = None
-    plusnumeric = None
-    to_execute = None
-    errors = dict()
-
-    _expanded_commands_config = dict()
-    _options_equivalency = dict()
-
     ERROR_TYPE_VALIDATION = 0
     ERROR_VALUE_NOT_FOUND = 1
     ERROR_INCOMPLETE_COMMAND = 2
 
-    def __init__(self, commands_config = None, options_config = None, *, cli_args = None):
+    def __init__(self, commands_config = None, options_config = None, cli_args = None):
         if cli_args is None:
             self.args = tuple(sys.argv[:])
         else:
             if not (isinstance(cli_args, (list, tuple)) and all(isinstance(element, str) for element in cli_args)):
                 raise ValueError(f"cli_args must be a list of strings")
             self.args = tuple(cli_args[:])
-        if commands_config is None:
-            self.commands_config = dict()
-        elif not isinstance(commands_config, dict):
-            self.commands_config = { '': commands_config }
-        else:
-            self.commands_config = commands_config
-        self.options_config = options_config or tuple()
+        self.commands_config = commands_config
+        self.options_config = options_config
         try:
             validate_commands_config(self.commands_config)
             validate_options_config(self.options_config)
@@ -53,6 +33,13 @@ class QuickParse(object):
             raise ValueError(ae) from ae
         self._expanded_commands_config = expand_commands_config_keys(self.commands_config)
         self._options_equivalency = get_options_equivalency(self.options_config)
+        self.commands = list()
+        self.parameters = list()
+        self.options = dict()
+        self.errors = dict()
+        self.to_execute = None
+        self.numeric = None
+        self.plusnumeric = None
         self._process_args()
 
     def execute(self, *_args, **kwargs):
@@ -90,22 +77,22 @@ class QuickParse(object):
             elif arg_type == 'plus numeric':
                 self.plusnumeric = int(arg[1:])
 
-            elif arg_type in ('minus letter', 'plus letter', 'doubleminus option'):
+            elif arg_type in ('minus letter', 'plus letter', 'doubleminus option') or \
+                (arg_type in ('minus long option', 'plus long option') and arg in self._options_equivalency):
                 validator = self._get_default_validator(arg)
                 if validator in (None, bool):
                     self._add_option_equivalents(arg, True)
                 else:
                     if arg_index >= len(self.args):
                         self._add_error(self.ERROR_VALUE_NOT_FOUND, arg, f"No value got for '{arg}' - validator: {validator.__name__}")
+                        self._validate_and_add(arg, True, lambda x: x)
                         continue
                     next_arg = self.args[arg_index]
                     arg_index += 1
-                    self._validate_and_add(arg, None if next_arg == '-' else next_arg, validator)
+                    self._validate_and_add(arg, next_arg, validator)
 
             elif arg_type in ('minus option and value', 'plus option and value', 'doubleminus option and value'):
                 key, value = arg.split('=', 1)
-                if value == '':
-                    value = None
                 validator = self._get_default_validator(key)
                 if validator in (None, bool):
                     if validator == bool:
@@ -114,7 +101,8 @@ class QuickParse(object):
                 else:
                     self._validate_and_add(key, value, validator)
 
-            elif arg_type in ('minus long option', 'plus long option'):
+            elif arg_type in ('minus long option', 'plus long option') or \
+                (arg_type in ('potential minus letter and value', 'potential plus letter and value') and self._get_default_validator(arg[0:2]) not in (None, bool)):
                 first_letter_validator = self._get_default_validator(arg[0:2])
                 if first_letter_validator not in (None, bool):
                     self._validate_and_add(arg[0:2], arg[2:], first_letter_validator)
@@ -148,7 +136,7 @@ class QuickParse(object):
                 else:
                     self.to_execute = command_level['']
             else:
-                self._add_error(self.ERROR_INCOMPLETE_COMMAND, self.commands, f"Nothing to execute on incomplete command: '{' '.join(self.commands)}'")
+                self._add_error(self.ERROR_INCOMPLETE_COMMAND, self.commands, f"Incomplete command: '{' '.join(self.commands)}'")
         else:
             if isinstance(command_level, (list, tuple)):
                 self.to_execute = tuple(command_level)
@@ -173,4 +161,5 @@ class QuickParse(object):
         return self._options_equivalency.get(option, {}).get('validator', None)
 
     def _add_error(self, type, target, message):
-        self.errors[target] = {'type': type, 'message': message}
+        equivalent_targets = self._options_equivalency.get(target, {}).get('equivalents', (target, ))
+        self.errors[equivalent_targets] = {'type': type, 'message': message}

@@ -16,6 +16,8 @@ arg_res_def = (
     ('doubleminus option and value', r'^--[a-zA-Z][a-zA-Z\-]*=.*$'),
     ('minus long option', r'^-[a-zA-Z][a-zA-Z\-]+$'),
     ('plus long option', r'^\+[a-zA-Z][a-zA-Z\-]+$'),
+    ('potential minus letter and value', r'^-[a-zA-Z].+$'),
+    ('potential plus letter and value', r'^\+[a-zA-Z].+$'),
     ('param or command', r'.*'),
 )
 arg_res = tuple(map(lambda x: {'type': x[0], 're': re.compile(x[1])}, arg_res_def))
@@ -24,6 +26,8 @@ command_re = re.compile(r'[a-zA-Z_\-]+')
 
 
 def validate_commands_config(commands_config):
+    if commands_config is None:
+        return
     _validate_key_instances_and_types(commands_config)
 
 def _validate_key_instances_and_types(commands_config_level):
@@ -52,6 +56,8 @@ def _validate_commands_key(key, all_keys):
         all_keys.append(key)
 
 def validate_options_config(options_config):
+    if options_config is None:
+        return
     options = list()
     assert isinstance(options_config, (list, tuple)), f"List expedted as options config, got this: {options}"
     for equivalents in options_config:
@@ -135,6 +141,10 @@ def get_arg_type(arg):
     raise RuntimeError(f"Incomplete regular expression coverage of argument {arg}")
 
 def get_equivalent_commands(commands, commands_config):
+    if len(commands) == 0:
+        return tuple()
+    if commands_config is None:
+        return (' '.join(commands), )
     command_equivalents_per_level = list()
     commands_config_level = commands_config
     for command in commands:
@@ -160,6 +170,8 @@ def _get_permutations(permutations, items):
     return _get_permutations(new_permutations, items[1:])
 
 def get_options_equivalency(options_config):
+    if options_config is None:
+        return dict()
     options_equivalency = dict()
     for equivalents in options_config:
         option_validator = ([eq for eq in equivalents if callable(eq)] or [None])[0]
@@ -170,6 +182,8 @@ def get_options_equivalency(options_config):
     return options_equivalency
 
 def expand_commands_config_keys(commands_config_level):
+    if commands_config_level is None:
+        return {'': None}
     expanded_commands_config = dict()
     for key, value in commands_config_level.items():
         if isinstance(key, tuple):

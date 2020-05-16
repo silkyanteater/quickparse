@@ -3,20 +3,197 @@ import pytest
 from quickparse import QuickParse
 
 
-options_config = [
-    ('-a', '--all'),
-    ('-file', ),  # says not to unpack it
-    ('-l', '-long', '--long', bool),  # adds an error if a value is provided using '='
-    ('-n', '-name', '--name', str),
-]
-
 func_names = \
     ['show_help', 'user_list', 'user_add', 'user_del', 'user_select', 'stage_show', 'stage_drop', 'branch_getall', 'branch_add'] + \
     ['branch_move', 'branch_remove', 'import_space', 'export_all', 'export_trees', 'export_gems']
 for item in func_names:
     globals()[item] = (lambda s: lambda: s)(item)
 
-commands_config = {
+def test_basics():
+    with pytest.raises(ValueError):
+        cli_args = ['', 'lorem', ()]
+        parsed = QuickParse(cli_args=cli_args)
+    cli_args = []
+    parsed = QuickParse(cli_args=cli_args)
+    assert isinstance(parsed.args, (list, tuple))
+    assert tuple(parsed.args) == tuple(cli_args)
+    assert parsed.commands_config is None
+    assert parsed.options_config is None
+    assert isinstance(parsed.commands, (list, tuple))
+    assert isinstance(parsed.parameters, (list, tuple))
+    assert isinstance(parsed.options, dict)
+    assert parsed.numeric == None
+    assert parsed.plusnumeric == None
+    assert parsed.to_execute == None
+    assert callable(parsed.execute)
+
+def test_default_processing_single_parameter():
+    cli_args = ['x']
+    parsed = QuickParse(cli_args=cli_args)
+    assert tuple(parsed.commands) == tuple()
+    assert tuple(parsed.parameters) == ('x', )
+    assert tuple(parsed.options) == tuple()
+    assert parsed.numeric == None
+    assert parsed.plusnumeric == None
+    assert parsed.to_execute == None
+    assert len(parsed.errors) == 0
+
+def test_default_processing_numerics():
+    cli_args = ['-12', '+12']
+    parsed = QuickParse(cli_args=cli_args)
+    assert tuple(parsed.commands) == tuple()
+    assert tuple(parsed.parameters) == tuple()
+    assert tuple(parsed.options) == tuple()
+    assert parsed.numeric == 12
+    assert parsed.plusnumeric == 12
+    assert parsed.to_execute == None
+    assert len(parsed.errors) == 0
+
+def test_default_processing_unpacking():
+    cli_args = ['-abc']
+    parsed = QuickParse(cli_args=cli_args)
+    assert tuple(parsed.commands) == tuple()
+    assert tuple(parsed.parameters) == tuple()
+    assert parsed.options == {'-a': True, '-b': True, '-c': True}
+    assert parsed.numeric == None
+    assert parsed.plusnumeric == None
+    assert parsed.to_execute == None
+    assert len(parsed.errors) == 0
+
+def test_default_processing_no_unpacking():
+    cli_args = ['-abc-d']
+    parsed = QuickParse(cli_args=cli_args)
+    assert tuple(parsed.commands) == tuple()
+    assert tuple(parsed.parameters) == tuple()
+    assert parsed.options == {'-abc-d': True}
+    assert parsed.numeric == None
+    assert parsed.plusnumeric == None
+    assert parsed.to_execute == None
+    assert len(parsed.errors) == 0
+
+def test_default_processing_minus_key_value():
+    cli_args = ['-abc=xyz']
+    parsed = QuickParse(cli_args=cli_args)
+    assert tuple(parsed.commands) == tuple()
+    assert tuple(parsed.parameters) == tuple()
+    assert parsed.options == {'-abc': 'xyz'}
+    assert parsed.numeric == None
+    assert parsed.plusnumeric == None
+    assert parsed.to_execute == None
+    assert len(parsed.errors) == 0
+
+def test_default_processing_doubleminus_key_value():
+    cli_args = ['--abc=xyz']
+    parsed = QuickParse(cli_args=cli_args)
+    assert tuple(parsed.commands) == tuple()
+    assert tuple(parsed.parameters) == tuple()
+    assert parsed.options == {'--abc': 'xyz'}
+    assert parsed.numeric == None
+    assert parsed.plusnumeric == None
+    assert parsed.to_execute == None
+    assert len(parsed.errors) == 0
+
+def test_options_config_no_unpacking():
+    options_config = [
+        ('-abc', ),  # says not to unpack it
+    ]
+    cli_args = ['-abc']
+    parsed = QuickParse(options_config=options_config, cli_args=cli_args)
+    assert tuple(parsed.commands) == tuple()
+    assert tuple(parsed.parameters) == tuple()
+    assert parsed.options == {'-abc': True}
+    assert parsed.numeric == None
+    assert parsed.plusnumeric == None
+    assert parsed.to_execute == None
+    assert len(parsed.errors) == 0
+
+def test_options_config_equivalents():
+    options_config = [
+        ('-a', '--all'),
+    ]
+    cli_args = ['-a']
+    parsed = QuickParse(options_config=options_config, cli_args=cli_args)
+    assert tuple(parsed.commands) == tuple()
+    assert tuple(parsed.parameters) == tuple()
+    assert parsed.options == {'-a': True, '--all': True}
+    assert parsed.numeric == None
+    assert parsed.plusnumeric == None
+    assert parsed.to_execute == None
+    assert len(parsed.errors) == 0
+
+def test_options_config_equivalent_key_values():
+    options_config = [
+        ('-n', '-name', '--name', str),
+    ]
+    cli_args = ['-nFoo']
+    parsed = QuickParse(options_config=options_config, cli_args=cli_args)
+    assert tuple(parsed.commands) == tuple()
+    assert tuple(parsed.parameters) == tuple()
+    assert parsed.options == {'-n': 'Foo', '-name': 'Foo', '--name': 'Foo'}
+    assert parsed.numeric == None
+    assert parsed.plusnumeric == None
+    assert parsed.to_execute == None
+    assert len(parsed.errors) == 0
+    cli_args = ['-n', 'Foo']
+    parsed = QuickParse(options_config=options_config, cli_args=cli_args)
+    assert tuple(parsed.commands) == tuple()
+    assert tuple(parsed.parameters) == tuple()
+    assert parsed.options == {'-n': 'Foo', '-name': 'Foo', '--name': 'Foo'}
+    assert parsed.numeric == None
+    assert parsed.plusnumeric == None
+    assert parsed.to_execute == None
+    assert len(parsed.errors) == 0
+    cli_args = ['-n=Foo']
+    parsed = QuickParse(options_config=options_config, cli_args=cli_args)
+    assert tuple(parsed.commands) == tuple()
+    assert tuple(parsed.parameters) == tuple()
+    assert parsed.options == {'-n': 'Foo', '-name': 'Foo', '--name': 'Foo'}
+    assert parsed.numeric == None
+    assert parsed.plusnumeric == None
+    assert parsed.to_execute == None
+    assert len(parsed.errors) == 0
+    cli_args = ['-name', 'Foo']
+    parsed = QuickParse(options_config=options_config, cli_args=cli_args)
+    assert tuple(parsed.commands) == tuple()
+    assert tuple(parsed.parameters) == tuple()
+    assert parsed.options == {'-n': 'Foo', '-name': 'Foo', '--name': 'Foo'}
+    assert parsed.numeric == None
+    assert parsed.plusnumeric == None
+    assert parsed.to_execute == None
+    assert len(parsed.errors) == 0
+    cli_args = ['-name=Foo']
+    parsed = QuickParse(options_config=options_config, cli_args=cli_args)
+    assert tuple(parsed.commands) == tuple()
+    assert tuple(parsed.parameters) == tuple()
+    assert parsed.options == {'-n': 'Foo', '-name': 'Foo', '--name': 'Foo'}
+    assert parsed.numeric == None
+    assert parsed.plusnumeric == None
+    assert parsed.to_execute == None
+    assert len(parsed.errors) == 0
+    cli_args = ['-name']
+    parsed = QuickParse(options_config=options_config, cli_args=cli_args)
+    assert tuple(parsed.commands) == tuple()
+    assert tuple(parsed.parameters) == tuple()
+    assert parsed.options == {'-n': True, '-name': True, '--name': True}
+    assert parsed.numeric == None
+    assert parsed.plusnumeric == None
+    assert parsed.to_execute == None
+    assert len(parsed.errors) == 1
+    cli_args = ['-name=']
+    parsed = QuickParse(options_config=options_config, cli_args=cli_args)
+    assert tuple(parsed.commands) == tuple()
+    assert tuple(parsed.parameters) == tuple()
+    assert parsed.options == {'-n': '', '-name': '', '--name': ''}
+    assert parsed.numeric == None
+    assert parsed.plusnumeric == None
+    assert parsed.to_execute == None
+    assert len(parsed.errors) == 0
+
+options_config = [
+    ('-l', '--long', bool),  # adds an error if a value is provided using '='
+]
+
+commands_config_ok = {
     ('help', 'h'): show_help,
     'user': {
         '': user_select,
@@ -42,27 +219,33 @@ commands_config = {
     },
 }
 
-def test_basics():
-    with pytest.raises(ValueError):
-        cli_args = ['', 'lorem', ()]
-        parsed = QuickParse(commands_config, options_config, cli_args=cli_args)
+def test_basics_with_configs():
     cli_args = []
-    parsed = QuickParse(commands_config, options_config, cli_args=cli_args)
-    assert isinstance(getattr(parsed, 'args', None), (list, tuple))
+    parsed = QuickParse(commands_config_ok, options_config, cli_args=cli_args)
+    assert isinstance(parsed.args, (list, tuple))
     assert tuple(parsed.args) == tuple(cli_args)
-    assert isinstance(getattr(parsed, 'commands_config', None), dict)
-    assert parsed.commands_config == commands_config
-    assert isinstance(getattr(parsed, 'options_config', None), (list, tuple))
+    assert isinstance(parsed.commands_config, dict)
+    assert parsed.commands_config == commands_config_ok
+    assert isinstance(parsed.options_config, (list, tuple))
     assert parsed.options_config == options_config
-    assert isinstance(getattr(parsed, 'commands', None), (list, tuple))
-    assert isinstance(getattr(parsed, 'parameters', None), (list, tuple))
-    assert isinstance(getattr(parsed, 'options', None), dict)
-    assert callable(getattr(parsed, 'execute', None))
+    assert isinstance(parsed.commands, (list, tuple))
+    assert isinstance(parsed.parameters, (list, tuple))
+    assert isinstance(parsed.options, dict)
+    assert callable(parsed.execute)
 
-def test_commands_config():
+def test_commands_config_ok():
     cli_args = ['h']
-    parsed = QuickParse(commands_config, cli_args=cli_args)
+    parsed = QuickParse(commands_config_ok, cli_args=cli_args)
     assert len(parsed.commands) == 2 and 'h' in parsed.commands and 'help' in parsed.commands
     assert len(parsed.parameters) == 0
     assert parsed.execute() == 'show_help'
     assert parsed.execute('lorem') == 'show_help'
+
+def test_commands_config_dupe_keys():
+    commands_config_dupe_keys = {
+        ('help', 'h'): show_help,
+        ('stage', 'st', 'h'): stage_show,
+    }
+    with pytest.raises(ValueError):
+        cli_args = ['h']
+        parsed = QuickParse(commands_config_dupe_keys, cli_args=cli_args)
