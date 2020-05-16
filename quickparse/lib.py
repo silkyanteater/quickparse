@@ -2,69 +2,72 @@ import inspect
 import re
 
 
-attr_re = re.compile(r'^(-\w[\w-]*|--\w[\w-]*|\+\w[\w-]*)$')
+option_key_re = re.compile(r'^(-[a-zA-Z][a-zA-Z\-]*|--[a-zA-Z][a-zA-Z\-]*|\+[a-zA-Z][a-zA-Z\-]*)$')
 
 arg_res_def = (
+    ('parameters only separator', r'^--$'),
     ('minus numeric', r'^-\d+$'),
     ('plus numeric', r'^\+\d+$'),
-    ('minus letter', r'^-\w$'),
-    ('plus letter', r'^\+\w$'),
-    ('minus letter block', r'^-\w{2,}$'),
-    ('plus letter block', r'^\+\w{2,}$'),
-    ('minus key equals value', r'^-[\w-]+=.*$'),
-    ('plus key equals value', r'^\+[\w-]+=.*$'),
-    ('doubleminus key equals value', r'^--[^-][\w-]+=.*$'),
-    ('doubleminus string', r'^--[^-].*$'),
+    ('minus letter', r'^-[a-zA-Z]$'),
+    ('plus letter', r'^\+[a-zA-Z]$'),
+    ('doubleminus option', r'^--[a-zA-Z][a-zA-Z\-]*$'),
+    ('minus option and value', r'^-[a-zA-Z][a-zA-Z\-]*=.*$'),
+    ('plus option and value', r'^\+[a-zA-Z][a-zA-Z\-]*=.*$'),
+    ('doubleminus option and value', r'^--[a-zA-Z][a-zA-Z\-]*=.*$'),
+    ('minus long option', r'^-[a-zA-Z][a-zA-Z\-]+$'),
+    ('plus long option', r'^\+[a-zA-Z][a-zA-Z\-]+$'),
     ('param or command', r'.*'),
 )
 arg_res = tuple(map(lambda x: {'type': x[0], 're': re.compile(x[1])}, arg_res_def))
+
+command_re = re.compile(r'[a-zA-Z_\-]+')
 
 
 def validate_commands_config(commands_config):
     _validate_key_instances_and_types(commands_config)
 
-def _validate_key_instances_and_types(commands_config):
-    keys = tuple(commands_config.keys())
+def _validate_key_instances_and_types(commands_config_level):
     all_keys = list()
-    for key in keys:
+    for key in commands_config_level:
         if isinstance(key, tuple):
             for key_elem in key:
                 if isinstance(key_elem, str):
-                    if key_elem in all_keys:
-                        raise AssertionError(f"Duplicate key in commands config: {key_elem}")
-                    else:
-                        all_keys.append(key_elem)
+                    _validate_commands_key(key_elem, all_keys)
                 else:
                     raise AssertionError(f"Invalid key in commands config: {key_elem}")
         elif isinstance(key, str):
-            if key in all_keys:
-                raise AssertionError(f"Duplicate key in commands config: {key}")
-            else:
-                all_keys.append(key)
+            assert key != '' or not isinstance(commands_config_level[''], dict), f"Empty key in commands_config can't lead to subcommands"
+            _validate_commands_key(key, all_keys)
         else:
             raise AssertionError(f"Invalid key in commands config: {key}")
-    for key in keys:
-        if isinstance(commands_config[key], dict):
-            _validate_key_instances_and_types(commands_config[key])
+    for key in commands_config_level:
+        if isinstance(commands_config_level[key], dict):
+            _validate_key_instances_and_types(commands_config_level[key])
 
+def _validate_commands_key(key, all_keys):
+    assert key == '' or command_re.match(key) is not None, f"Only [a-zA-Z_-] characteres are allowed in commands config keys, got this: {key}"
+    if key in all_keys:
+        raise AssertionError(f"Duplicate key in commands config: {key}")
+    else:
+        all_keys.append(key)
 
-def validate_attrs_config(attrs_config):
-    params = list()
-    assert isinstance(attrs_config, (list, tuple)), f"List expedted as params config, got this: {params}"
-    for equivalents in attrs_config:
-        assert isinstance(equivalents, (list, tuple)), f"List expedted as params config item, got this {equivalents}"
-        type_count = 0
+def validate_options_config(options_config):
+    options = list()
+    assert isinstance(options_config, (list, tuple)), f"List expedted as options config, got this: {options}"
+    for equivalents in options_config:
+        assert isinstance(equivalents, (list, tuple)), f"List expedted as options config item, got this {equivalents}"
+        validator_count = 0
         for equivalent in equivalents:
             if isinstance(equivalent, str):
                 equivalent_stripped = equivalent.strip()
-                assert attr_re.match(equivalent_stripped) is not None , f"Valid attribute formats: '-*', '--*' or '+*', got this: {equivalent}"
-                assert equivalent_stripped not in params, f"Attribute found multiple times in params config: {equivalent_stripped}"
-                params.append(equivalent_stripped)
-            elif equivalent not in (bool, int, float, str):
-                raise AssertionError(f"Strings or types (bool, int, float, str) are accepted in an attribute config item, got this: {equivalent}")
+                assert option_key_re.match(equivalent_stripped) is not None , f"Valid option formats: '-*', '--*' or '+*' followed by letters and '-'s not in the first place, got this: {equivalent}"
+                assert equivalent_stripped not in options, f"Option name found multiple times in options config: {equivalent_stripped}"
+                options.append(equivalent_stripped)
+            elif not callable(equivalent):
+                raise AssertionError(f"Strings or callable validators are accepted in an options config item, got this: {equivalent}")
             else:
-                type_count += 1
-                assert type_count <= 1, f"More than one type found here: {equivalents}"
+                validator_count += 1
+                assert validator_count <= 1, f"More than one validator found here: {equivalents}"
 
 def humblecall(func, *args, **kwargs):
     if not callable(func):
@@ -131,19 +134,44 @@ def get_arg_type(arg):
             return arg_re['type']
     raise RuntimeError(f"Incomplete regular expression coverage of argument {arg}")
 
-def get_attrs_equivalency_from_config(attrs_config):
-    attrs_equivalency = dict()
-    for equivalents in attrs_config:
-        attr_type = ([eq for eq in equivalents if isinstance(eq, type)] or [bool])[0]
-        equivalent_attrs = tuple(eq.strip() for eq in equivalents if isinstance(eq, str))
-        equivalency = {'type': attr_type, 'equivalents': equivalent_attrs}
-        for eq_param in equivalent_attrs:
-            attrs_equivalency[eq_param] = equivalency
-    return attrs_equivalency
+def get_equivalent_commands(commands, commands_config):
+    command_equivalents_per_level = list()
+    commands_config_level = commands_config
+    for command in commands:
+        if command in commands_config_level:
+            command_equivalents_per_level.append((command, ))
+            commands_config_level = commands_config_level[command]
+            continue
+        for equivalent_group, next_commands_config_level in commands_config_level.items():
+            if isinstance(equivalent_group, tuple) and command in equivalent_group:
+                command_equivalents_per_level.append(equivalent_group)
+                commands_config_level = next_commands_config_level
+                break
+    permutations = _get_permutations([[]], command_equivalents_per_level)
+    return tuple(' '.join(permutation) for permutation in permutations)
 
-def expand_commands_config_keys(commands_config):
+def _get_permutations(permutations, items):
+    if len(items) == 0:
+        return permutations
+    new_permutations = list()
+    for item in items[0]:
+        for permutation in permutations:
+            new_permutations.append(permutation + [item])
+    return _get_permutations(new_permutations, items[1:])
+
+def get_options_equivalency(options_config):
+    options_equivalency = dict()
+    for equivalents in options_config:
+        option_validator = ([eq for eq in equivalents if callable(eq)] or [None])[0]
+        equivalent_options = tuple(eq.strip() for eq in equivalents if isinstance(eq, str))
+        equivalency = {'validator': option_validator, 'equivalents': equivalent_options}
+        for eq_option in equivalent_options:
+            options_equivalency[eq_option] = equivalency
+    return options_equivalency
+
+def expand_commands_config_keys(commands_config_level):
     expanded_commands_config = dict()
-    for key, value in commands_config.items():
+    for key, value in commands_config_level.items():
         if isinstance(key, tuple):
             for key_elem in key:
                 expanded_commands_config[key_elem] = value
