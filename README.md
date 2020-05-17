@@ -26,36 +26,106 @@ $ python list_things.py ls -5
 1, 2, 3, 4, 5
 ```
 
+The way it works:
+- `commands_config` tells QuickParse to look for `ls` as a command and call `list_things` on it - when no commands show help
+- QuickParse parses arguments as normal while `ls` is privileged as a command
+- QuickParse finds `-5` so it adds as `quickparse.numeric = 5` (`quickparse` being the `QuickParse` instance coming from `QuickParse(commands_config)`)
+- QuickParse sees `list_things` being associated to `ls`, so `quickparse.execute(mylist)` calls it, passing down a positional argument
+- since `list_things` expects a named argument `quickparse`, QuickParse makes sure it passes down the reference to its own instance of `quickparse`
+
 ## GNU Argument Syntax implementation with extensions
 GNU Argument Syntax: https://www.gnu.org/software/libc/manual/html_node/Argument-Syntax.html
 
 ### Extensions
-- numeric flags > -12
-- '+' numeric flags > +12
-- custom single '-' options
-- default single '+' options
-- definition of equivalent options - like ('-l', '--list')
-- command-subcommand hierarchy
-- binding functions to commands
+#### numeric flags
+```$ cmd -12```bash
+#### '+' numeric flags
+```$ cmd +12```bash
+#### long custom single '-' options
+```$ cmd -list```bash
+By default it becomes `-l -i -s -t`, but adding `QuickParse(options_config = [ ('-list', ) ])` will stop unpacking.
+#### default single '+' options
+```$ cmd +list```bash
+#### definition of equivalent options - like ('-l', '--list')
+```$ cmd -l```bash
+is equivalent to
+```$ cmd --list```bash
+if adding `QuickParse(options_config = [ ('-l', '--list') ])`
+#### command-subcommand hierarchy
+#### AND
+#### binding functions to commands
+Defining a random sample from `git` looks like this:
+```python
+options_config = [
+    ('-a', '--all'),
+]
+
+commands_config = {
+    '': do_show_help,
+    'commit': do_commit,
+    'log': do_log,
+    'stash': {
+        '': do_stash,
+        'list': do_stash_list,
+    }
+}
+
+QuickParse(commands_config, options_config).execute()
+```
+Commands are called according to commands_config, `do_log` in this case: `$ git log -3`
+`do_log` may look like this:
+```python
+def do_log(quickparse):
+    print(logentries[:quickparse.numeric])
+```
+If there is a named argument in `do_log`'s signature called `quickparse`, the object coming from `QuickParse(commands_config, options_config)` is passed down holding all the results of parsing.
+Parsing happens by using the defaults and applying what `options_config` adds to it.
 
 ## Argument formats
-`-<number>`
-`+<number>`
-`-<single letter>`
-`+<single letter>`
-`-<single letter><value>`
-`+<single letter><value>`
-`-<single letter>=<value>`
-`+<single letter>=<value>`
-`-<letters>`
-`+<letters>`
-`-<letters>=<value>`
-`+<letters>=<value>`
-`--<letters>`
-`--<letters>=<value>`
-`--`: parameters delimiter - after this everything is added as a parameter
+```
+-<number>
+```
+```
++<number>
+```
+```
+-<single_letter>
+```
+```
++<single_letter>
+```
+```
+-<single_letter><value>
+```
+```
++<single_letter><value>
+```
+```
+-<single_letter>=<value>
+```
+```
++<single_letter>=<value>
+```
+```
+-<letters>
+```
+```
++<letters>
+```
+```
+-<letters>=<value>
+```
+```
++<letters>=<value>
+```
+```
+--<letters>
+```
+```
+--<letters>=<value>
+```
+`--` : parameters delimiter
 
-Fine print:
 <letters> means [a-zA-Z] and '-'s not in the first place
 
 ### An argument like '-a*' gets unpacked if...
@@ -124,5 +194,56 @@ $ python options_test.py -ul --name the_name
 $ python options_test.py -ul --name=the_name
 {'-u': True, '--utc': True, '--universal': True, '-l': True, '--long': True, '--name': 'the_name', '-n': 'the_name'}
 ```
-
 `-uln` stopped the parser from unpacking because `-n` expected an input value
+
+## Test your command line arguments
+`quickparse_test.py` (committed in the repo):
+```python
+from pprint import pformat
+
+from quickparse import QuickParse
+
+
+def do_show_help():
+    print('Executing \'do_show_help\'...')
+
+def do_commit():
+    print('Executing \'do_commit\'...')
+
+def do_log(quickparse):
+    print('Executing \'do_log\'...')
+
+def do_stash():
+    print('Executing \'do_stash\'...')
+
+def do_stash_list():
+    print('Executing \'do_stash_list\'...')
+
+commands_config = {
+    '': do_show_help,
+    'commit': do_commit,
+    'log': do_log,
+    'stash': {
+        '': do_stash,
+        'list': do_stash_list,
+    }
+}
+
+options_config = [
+    ('-m', '--message', str),
+    ('-p', '--patch'),
+]
+
+
+parsed = QuickParse(commands_config, options_config)
+
+
+print(f'Commands:\n{pformat(parsed.commands)}')
+print(f'Parameters:\n{pformat(parsed.parameters)}')
+print(f'Options:\n{pformat(parsed.options)}')
+print(f'\'-\' numeric argument:\n{pformat(parsed.numeric)}')
+print(f'\'+\' numeric argument:\n{pformat(parsed.plusnumeric)}')
+print(f'Functions to call:\n{pformat(parsed.to_execute)}')
+
+parsed.execute()
+```

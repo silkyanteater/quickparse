@@ -6,18 +6,12 @@ option_key_re = re.compile(r'^(-[a-zA-Z][a-zA-Z\-]*|--[a-zA-Z][a-zA-Z\-]*|\+[a-z
 
 arg_res_def = (
     ('parameters only separator', r'^--$'),
-    ('minus numeric', r'^-\d+$'),
-    ('plus numeric', r'^\+\d+$'),
-    ('minus letter', r'^-[a-zA-Z]$'),
-    ('plus letter', r'^\+[a-zA-Z]$'),
+    ('numeric', r'^[-+]\d+$'),
+    ('single letter', r'^[-+][a-zA-Z]$'),
     ('doubleminus option', r'^--[a-zA-Z][a-zA-Z\-]*$'),
-    ('minus option and value', r'^-[a-zA-Z][a-zA-Z\-]*=.*$'),
-    ('plus option and value', r'^\+[a-zA-Z][a-zA-Z\-]*=.*$'),
-    ('doubleminus option and value', r'^--[a-zA-Z][a-zA-Z\-]*=.*$'),
-    ('minus long option', r'^-[a-zA-Z][a-zA-Z\-]+$'),
-    ('plus long option', r'^\+[a-zA-Z][a-zA-Z\-]+$'),
-    ('potential minus letter and value', r'^-[a-zA-Z].+$'),
-    ('potential plus letter and value', r'^\+[a-zA-Z].+$'),
+    ('option and value', r'^(-|--|\+)[a-zA-Z][a-zA-Z\-]*=.*$'),
+    ('long option', r'^[-+][a-zA-Z][a-zA-Z\-]+$'),
+    ('potential letter and value', r'^[-+][a-zA-Z].+$'),
     ('param or command', r'.*'),
 )
 arg_res = tuple(map(lambda x: {'type': x[0], 're': re.compile(x[1])}, arg_res_def))
