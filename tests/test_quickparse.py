@@ -233,6 +233,7 @@ def test_basics_with_configs():
     assert isinstance(parsed.commands, (list, tuple))
     assert isinstance(parsed.parameters, (list, tuple))
     assert isinstance(parsed.options, dict)
+    assert isinstance(parsed.non_commands, (list, tuple))
     assert callable(parsed.execute)
 
 def test_commands_config_ok():
@@ -240,6 +241,7 @@ def test_commands_config_ok():
     parsed = QuickParse(commands_config_ok, cli_args=cli_args)
     assert len(parsed.commands) == 2 and 'h' in parsed.commands and 'help' in parsed.commands
     assert len(parsed.parameters) == 0
+    assert len(parsed.non_commands) == 0
     assert parsed.execute() == 'show_help'
     assert parsed.execute('lorem') == 'show_help'
 
@@ -256,9 +258,22 @@ def test_parameters():
     cli_args = 'user add user1'.split()
     parsed = QuickParse(commands_config_ok, cli_args=cli_args)
     assert tuple(parsed.commands) == ('user add', )
-    assert tuple(parsed.parameters) == ('user1', )
+    assert set(parsed.parameters) == {'user1'}
+    assert set(parsed.non_commands) == {'user1'}
     assert parsed.options == dict()
     assert parsed.numeric == None
+    assert parsed.plusnumeric == None
+    assert parsed.to_execute == user_add
+    assert len(parsed.errors) == 0
+
+def test_non_commands():
+    cli_args = 'user add user1 -3 --list'.split()
+    parsed = QuickParse(commands_config_ok, cli_args=cli_args)
+    assert tuple(parsed.commands) == ('user add', )
+    assert set(parsed.parameters) == {'user1'}
+    assert set(parsed.non_commands) == {'user1', '-3', '--list'}
+    assert parsed.options == {'--list': True}
+    assert parsed.numeric == 3
     assert parsed.plusnumeric == None
     assert parsed.to_execute == user_add
     assert len(parsed.errors) == 0

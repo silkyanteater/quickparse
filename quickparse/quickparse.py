@@ -36,6 +36,7 @@ class QuickParse(object):
         self.commands = list()
         self.parameters = list()
         self.options = dict()
+        self.non_commands = list()
         self.errors = dict()
         self.to_execute = None
         self.numeric = None
@@ -60,12 +61,14 @@ class QuickParse(object):
         while arg_index < len(self.args):
             arg = self.args[arg_index]
             arg_index += 1
-            arg_type = get_arg_type(arg)
 
             if arg == '':
                 continue
 
-            elif not parameters_only_turned_on and arg_type == 'parameters only separator':
+            self.non_commands.append(arg)
+            arg_type = get_arg_type(arg)
+
+            if not parameters_only_turned_on and arg_type == 'parameters only separator':
                 parameters_only_turned_on = True
 
             elif parameters_only_turned_on:
@@ -124,12 +127,14 @@ class QuickParse(object):
                 # arg_type == 'potential letter and value' and self._get_default_validator(arg[0:2]) in (None, bool)
                 if isinstance(command_level, dict) and arg in command_level:
                     self.commands.append(arg)
+                    self.non_commands.pop()
                     command_level = command_level[arg]
                 else:
                     self.parameters.append(arg)
 
         self.commands = get_equivalent_commands(self.commands, self.commands_config)
         self.parameters = tuple(self.parameters)
+        self.non_commands = tuple(self.non_commands)
 
         if isinstance(command_level, dict):
             if '' in command_level:
