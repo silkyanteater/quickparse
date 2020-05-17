@@ -8,6 +8,8 @@ func_names = \
     ['branch_move', 'branch_remove', 'import_space', 'export_all', 'export_trees', 'export_gems']
 for item in func_names:
     globals()[item] = (lambda s: lambda: s)(item)
+    globals()[item].__qualname__ = item
+
 
 def test_basics():
     with pytest.raises(ValueError):
@@ -39,7 +41,7 @@ def test_default_processing_single_parameter():
     assert len(parsed.errors) == 0
 
 def test_default_processing_numerics():
-    cli_args = ['-12', '+12']
+    cli_args = '-12 +12'.split()
     parsed = QuickParse(cli_args=cli_args)
     assert tuple(parsed.commands) == tuple()
     assert tuple(parsed.parameters) == tuple()
@@ -249,3 +251,14 @@ def test_commands_config_dupe_keys():
     with pytest.raises(ValueError):
         cli_args = ['h']
         parsed = QuickParse(commands_config_dupe_keys, cli_args=cli_args)
+
+def test_parameters():
+    cli_args = 'user add user1'.split()
+    parsed = QuickParse(commands_config_ok, cli_args=cli_args)
+    assert tuple(parsed.commands) == ('user add', )
+    assert tuple(parsed.parameters) == ('user1', )
+    assert parsed.options == dict()
+    assert parsed.numeric == None
+    assert parsed.plusnumeric == None
+    assert parsed.to_execute == user_add
+    assert len(parsed.errors) == 0

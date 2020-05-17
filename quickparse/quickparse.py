@@ -122,7 +122,7 @@ class QuickParse(object):
                 # arg_type == 'param or command'
                 # or
                 # arg_type == 'potential letter and value' and self._get_default_validator(arg[0:2]) in (None, bool)
-                if arg in command_level:
+                if isinstance(command_level, dict) and arg in command_level:
                     self.commands.append(arg)
                     command_level = command_level[arg]
                 else:
