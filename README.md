@@ -37,29 +37,35 @@ The way it works:
 GNU Argument Syntax: https://www.gnu.org/software/libc/manual/html_node/Argument-Syntax.html
 
 ### Extensions
-#### numeric flags
-```$ cmd -12```bash
-#### '+' numeric flags
-```$ cmd +12```bash
-#### long custom single '-' options
-```$ cmd -list```bash
+#### Numeric '-' values
+```bash
+$ cmd -12
+```
+#### Numeric '+' values
+```bash
+$ cmd +12
+```
+#### Long '-' options - only with explicit config
+```bash
+$ cmd -list
+```
 By default it becomes `-l -i -s -t`, but adding `QuickParse(options_config = [ ('-list', ) ])` will stop unpacking.
-#### default single '+' options
-```$ cmd +list```bash
-#### definition of equivalent options - like ('-l', '--list')
-```$ cmd -l```bash
+#### Long '+' options by default
+```bash
+$ cmd +list
+```
+#### Equivalent options - using options_config
+```bash
+$ cmd -l
+```
 is equivalent to
-```$ cmd --list```bash
+```bash
+$ cmd --list
+```
 if adding `QuickParse(options_config = [ ('-l', '--list') ])`
-#### command-subcommand hierarchy
-#### AND
-#### binding functions to commands
+#### Command-subcommand hierarchy and function bindings - using commands_config
 Defining a random sample from `git` looks like this:
 ```python
-options_config = [
-    ('-a', '--all'),
-]
-
 commands_config = {
     '': do_show_help,
     'commit': do_commit,
@@ -70,91 +76,77 @@ commands_config = {
     }
 }
 
+options_config = [
+    ('-a', '--all'),
+]
+
 QuickParse(commands_config, options_config).execute()
 ```
-Commands are called according to commands_config, `do_log` in this case: `$ git log -3`
+Commands are called according to commands_config.  
+That is `$ git log -3` calls `do_log`  
 `do_log` may look like this:
 ```python
 def do_log(quickparse):
     print(logentries[:quickparse.numeric])
 ```
-If there is a named argument in `do_log`'s signature called `quickparse`, the object coming from `QuickParse(commands_config, options_config)` is passed down holding all the results of parsing.
+If there is a named argument in `do_log`'s signature called `quickparse`, the object coming from `QuickParse(commands_config, options_config)` is passed down holding all the results of parsing.  
 Parsing happens by using the defaults and applying what `options_config` adds to it.
 
-## Argument formats
-```
--<number>
-```
-```
-+<number>
-```
-```
--<single_letter>
-```
-```
-+<single_letter>
-```
-```
--<single_letter><value>
-```
-```
-+<single_letter><value>
-```
-```
--<single_letter>=<value>
-```
-```
-+<single_letter>=<value>
-```
-```
--<letters>
-```
-```
-+<letters>
-```
-```
--<letters>=<value>
-```
-```
-+<letters>=<value>
-```
-```
---<letters>
-```
-```
---<letters>=<value>
-```
-`--` : parameters delimiter
+## Argument Formats
+| &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Argument&nbsp;Format&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; | &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Example&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; | Remarks |
+| --- | --- | --- |
+| `-<number>` | `$ cmd -12` | (default) |
+| `+<number>` | `$ cmd +12` | (default) |
+| `-<single_letter>` | `$ cmd -x` | (default) |
+| `+<single_letter>` | `$ cmd +x` | (default) |
+| `-<single_letter><value>` | `$ cmd -nFoo` | unpacking is the default: -n -F -o<br>`options_config` needs a type entry saying it expects a value (other than bool) |
+| `+<single_letter><value>` | `$ cmd +nFoo` | unpacking is the default: +n +F +o<br>`options_config` needs a type entry saying it expects a value (other than bool) |
+| `-<single_letter>=<value>` | `$ cmd -n=Foo` | (default) |
+| `+<single_letter>=<value>` | `$ cmd +n=Foo` | (default) |
+| `-<single_letter> <value>` | `$ cmd -n Foo` | `options_config` needs a type entry saying it expects a value (other than bool) |
+| `+<single_letter> <value>` | `$ cmd +n Foo` | `options_config` needs a type entry saying it expects a value (other than bool) |
+| `-<letters>` | `$ cmd -abc` | unpacking is the default: -a -b -c<br>if in `options_config` it's taken as `-abc` |
+| `+<letters>` | `$ cmd +abc` | unpacking is the default: +a +b +c<br>if in `options_config` it's taken as `+abc` |
+| `-<letters>=<value>` | `$ cmd -name=Foo` | (default) |
+| `+<letters>=<value>` | `$ cmd +name=Foo` | (default) |
+| `--<letters>` | `$ cmd --list` | (default) |
+| `--<letters>=<value>` | `$ cmd --message=Bar` | (default) |
+| `--<letters> <value>` | `$ cmd --message Bar` | `options_config` needs a type entry saying it expects a value (other than bool) |
+| `--` | `$ cmd -- --param-anyway` | parameters delimiter<br>(default) |
 
-<letters> means [a-zA-Z] and '-'s not in the first place
+`<letters>` means [a-zA-Z] and '-'s not in the first place
 
 ### An argument like '-a*' gets unpacked if...
 - '-a' is not defined to expect a value
 - the '*' part only has letters, not '-' or '='
 
 ### How to change the interpretation of `-swing`
-It can mean:
-`-s -w -i -n -g`
-or
-`-s wing` / `-s=wing`
-Make the parser aware that '-s' expects a `str` value
+It can mean:  
+`-s -w -i -n -g`  
+or  
+`-s wing` / `-s=wing`  
+Make the parser aware that '-s' expects a `str` value:
+```python
+options_config = [
+    ('-s', str),
+]
+```
 
 ### Make the parser aware that an option expects a value after a space
-Add type explicitly in `options_config`.
+Add type explicitly in `options_config`.  
 For just getting as it is add `str`.
 
 ### How to define option types
-Use build-in types like `int` or `float`, or create a callable that raises exceptions.
+Use build-in types like `int` or `float`, or create a callable that raises exceptions.  
 Using `bool` is a special case: parser will not expect a value but adds an error if one provided.
 
 ### How to add empty value to an option
 `-option=`
-Some commands support '-' as empty value:
-`curl -C - -O http://domanin.com/`
-In this case '-' couldn't be explicitely provided, this is why the syntax with '=' is supported here.
+Some commands support '-' as empty value: `curl -C - -O http://domanin.com/`  
+In this case '-' couldn't be provided as a literal so the syntax with '=' is supported here.
 
 ## Error handling
-If the parser parameters 'commands_config' or 'options_config' are not valid, ValueError is rased from the underlying AssertionError.
+If the parser parameters 'commands_config' or 'options_config' are not valid, ValueError is rased from the underlying AssertionError.  
 If the arguments are not compliant with the config (e.g. no value provided for an option that requires one) then no exceptions are raised but an `errors` list is populated on the `QuickParse` object.
 
 ## How to define options
@@ -177,20 +169,28 @@ Run it:
 ```
 $ python options_test.py
 {}
+
 $ python options_test.py -u
 {'-u': True, '--utc': True, '--universal': True}
+
 $ python options_test.py -ul
 {'-u': True, '--utc': True, '--universal': True, '-l': True, '--long': True}
+
 $ python options_test.py -uln
 {'-uln': True}
+
 $ python options_test.py -ul -nthe_name
 {'-u': True, '--utc': True, '--universal': True, '-l': True, '--long': True, '-n': 'the_name', '--name': 'the_name'}
+
 $ python options_test.py -ul -n the_name
 {'-u': True, '--utc': True, '--universal': True, '-l': True, '--long': True, '-n': 'the_name', '--name': 'the_name'}
+
 $ python options_test.py -ul -n=the_name
 {'-u': True, '--utc': True, '--universal': True, '-l': True, '--long': True, '-n': 'the_name', '--name': 'the_name'}
+
 $ python options_test.py -ul --name the_name
 {'-u': True, '--utc': True, '--universal': True, '-l': True, '--long': True, '--name': 'the_name', '-n': 'the_name'}
+
 $ python options_test.py -ul --name=the_name
 {'-u': True, '--utc': True, '--universal': True, '-l': True, '--long': True, '--name': 'the_name', '-n': 'the_name'}
 ```
