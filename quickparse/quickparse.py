@@ -72,7 +72,13 @@ class QuickParse(object):
                 parameters_only_turned_on = True
 
             elif parameters_only_turned_on:
-                self.parameters.append(arg)
+                try:
+                    self.parameters.append(int(arg))
+                except ValueError:
+                    try:
+                        self.parameters.append(float(arg))
+                    except ValueError:
+                        self.parameters.append(arg)
 
             elif arg_type == 'numeric':
                 if arg[0] == '-':
@@ -130,7 +136,13 @@ class QuickParse(object):
                     self.non_commands.pop()
                     command_level = command_level[arg]
                 else:
-                    self.parameters.append(arg)
+                    try:
+                        self.parameters.append(int(arg))
+                    except ValueError:
+                        try:
+                            self.parameters.append(float(arg))
+                        except ValueError:
+                            self.parameters.append(arg)
 
         self.commands = get_equivalent_commands(self.commands, self.commands_config)
         self.parameters = tuple(self.parameters)
