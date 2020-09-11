@@ -11,6 +11,8 @@ from .lib import (
 )
 
 
+# TODO: '-am xxx' can be '-a -mxxx' if both -a and -m defined and -m expects an argument
+
 class QuickParse(object):
 
     ERROR_TYPE_VALIDATION = 0
