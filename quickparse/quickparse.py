@@ -11,7 +11,7 @@ from .lib import (
 )
 
 
-# TODO: '-am xxx' can be '-a -mxxx' if both -a and -m defined and -m expects an argument
+# TODO: '-abc -mxxx' can be replaced with '-abcm xxx' if only 'm' expects a value (order shouldn't matter)
 
 class QuickParse(object):
 
