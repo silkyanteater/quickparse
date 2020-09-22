@@ -2,4 +2,4 @@
 
 export PYTHONPATH=$PYTHONPATH:../quickparse
 
-poetry run pytest tests
+poetry run pytest tests "$@"

@@ -11,8 +11,6 @@ from .lib import (
 )
 
 
-# TODO: '-abc -mxxx' can be replaced with '-abcm xxx' if only 'm' expects a value (order shouldn't matter)
-
 class QuickParse(object):
 
     ERROR_TYPE_VALIDATION = 0
@@ -123,9 +121,21 @@ class QuickParse(object):
                     prefix = arg[0]
                     for letter in arg[1:]:
                         unpacked.append(f"{prefix}{letter}")
-                    if all(self._get_default_validator(option) in (None, bool) for option in unpacked):
+                    validated_options = tuple(option for option in unpacked if self._get_default_validator(option) not in (None, bool))
+                    if len(validated_options) <= 1:
                         for option in unpacked:
-                            self._add_option_equivalents(option, True)
+                            if option not in validated_options:
+                                self._add_option_equivalents(option, True)
+                        if len(validated_options) == 1:
+                            option = validated_options[0]
+                            validator = self._get_default_validator(option)
+                            if arg_index >= len(self.args):
+                                self._add_error(self.ERROR_VALUE_NOT_FOUND, option, f"No value got for '{option}' - validator: {validator.__name__}")
+                                self._validate_and_add(option, True, lambda x: x)
+                                continue
+                            next_arg = self.args[arg_index]
+                            arg_index += 1
+                            self._validate_and_add(option, next_arg, validator)
                         continue
                 self._add_option_equivalents(arg, True)
 

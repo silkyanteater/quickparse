@@ -62,6 +62,17 @@ def test_default_processing_unpacking():
     assert parsed.to_execute == None
     assert len(parsed.errors) == 0
 
+def test_double_processing_unpacking():
+    cli_args = ['-abc', '-def']
+    parsed = QuickParse(cli_args=cli_args)
+    assert tuple(parsed.commands) == tuple()
+    assert tuple(parsed.parameters) == tuple()
+    assert parsed.options == {'-a': True, '-b': True, '-c': True, '-d': True, '-e': True, '-f': True}
+    assert parsed.numeric == None
+    assert parsed.plusnumeric == None
+    assert parsed.to_execute == None
+    assert len(parsed.errors) == 0
+
 def test_default_processing_no_unpacking():
     cli_args = ['-abc-d']
     parsed = QuickParse(cli_args=cli_args)
@@ -118,6 +129,47 @@ def test_options_config_equivalents():
     assert tuple(parsed.commands) == tuple()
     assert tuple(parsed.parameters) == tuple()
     assert parsed.options == {'-a': True, '--all': True}
+    assert parsed.numeric == None
+    assert parsed.plusnumeric == None
+    assert parsed.to_execute == None
+    assert len(parsed.errors) == 0
+
+def test_options_config_unpacking_with_value():
+    options_config = [
+        ('-x', '--extra', int),
+    ]
+    cli_args = ['-xyz', '8']
+    parsed = QuickParse(options_config=options_config, cli_args=cli_args)
+    assert tuple(parsed.commands) == tuple()
+    assert tuple(parsed.parameters) == (8, )
+    assert parsed.options == {'-x': 'yz', '--extra': 'yz'}
+    assert parsed.numeric == None
+    assert parsed.plusnumeric == None
+    assert parsed.to_execute == None
+    assert len(parsed.errors) == 1
+    cli_args = ['-yxz']
+    parsed = QuickParse(options_config=options_config, cli_args=cli_args)
+    assert tuple(parsed.commands) == tuple()
+    assert tuple(parsed.parameters) == tuple()
+    assert parsed.options == {'--extra': True, '-x': True, '-y': True, '-z': True}
+    assert parsed.numeric == None
+    assert parsed.plusnumeric == None
+    assert parsed.to_execute == None
+    assert len(parsed.errors) == 1
+    cli_args = ['-yxz', '8']
+    parsed = QuickParse(options_config=options_config, cli_args=cli_args)
+    assert tuple(parsed.commands) == tuple()
+    assert tuple(parsed.parameters) == tuple()
+    assert parsed.options == {'--extra': 8, '-x': 8, '-y': True, '-z': True}
+    assert parsed.numeric == None
+    assert parsed.plusnumeric == None
+    assert parsed.to_execute == None
+    assert len(parsed.errors) == 0
+    cli_args = ['-yzx', '8']
+    parsed = QuickParse(options_config=options_config, cli_args=cli_args)
+    assert tuple(parsed.commands) == tuple()
+    assert tuple(parsed.parameters) == tuple()
+    assert parsed.options == {'-x': 8, '--extra': 8, '-y': True, '-z': True}
     assert parsed.numeric == None
     assert parsed.plusnumeric == None
     assert parsed.to_execute == None
