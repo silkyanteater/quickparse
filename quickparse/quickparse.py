@@ -81,10 +81,21 @@ class QuickParse(object):
                         self.parameters.append(arg)
 
             elif arg_type == 'numeric':
+                numeric_val = int(arg[1:])
                 if arg[0] == '-':
-                    self.numeric = int(arg[1:])
+                    if self.numeric is None:
+                        self.numeric = numeric_val
+                    else:
+                        if not isinstance(self.numeric, tuple):
+                            self.numeric = (self.numeric, )
+                        self.numeric += (numeric_val, )
                 else: # '+'
-                    self.plusnumeric = int(arg[1:])
+                    if self.plusnumeric is None:
+                        self.plusnumeric = numeric_val
+                    else:
+                        if not isinstance(self.plusnumeric, tuple):
+                            self.plusnumeric = (self.plusnumeric, )
+                        self.plusnumeric += (numeric_val, )
 
             elif arg_type in ('single letter', 'doubleminus option') or \
                 (arg_type == 'long option' and arg in self._options_equivalency):
@@ -184,9 +195,14 @@ class QuickParse(object):
             self._add_option_equivalents(option, valid)
 
     def _add_option_equivalents(self, option, value):
-        self.options[option] = value
+        if option in self.options:
+            if not isinstance(self.options[option], tuple):
+                self.options[option] = (self.options[option], )
+            self.options[option] += (value, )
+        else:
+            self.options[option] = value
         for eq_option in self._options_equivalency.get(option, {}).get('equivalents', ()):
-            self.options[eq_option] = value
+            self.options[eq_option] = self.options[option]
 
     def _get_default_validator(self, option):
         return self._options_equivalency.get(option, {}).get('validator', None)

@@ -51,12 +51,51 @@ def test_default_processing_numerics():
     assert parsed.to_execute == None
     assert len(parsed.errors) == 0
 
+def test_stacked_processing_numerics():
+    cli_args = '-11 -12'.split()
+    parsed = QuickParse(cli_args=cli_args)
+    assert tuple(parsed.commands) == tuple()
+    assert tuple(parsed.parameters) == tuple()
+    assert tuple(parsed.options) == tuple()
+    assert parsed.numeric == (11, 12)
+    assert parsed.to_execute == None
+    assert len(parsed.errors) == 0
+    cli_args = '+11 +12 -13'.split()
+    parsed = QuickParse(cli_args=cli_args)
+    assert tuple(parsed.commands) == tuple()
+    assert tuple(parsed.parameters) == tuple()
+    assert tuple(parsed.options) == tuple()
+    assert parsed.numeric == 13
+    assert parsed.plusnumeric == (11, 12)
+    assert parsed.to_execute == None
+    assert len(parsed.errors) == 0
+
 def test_default_processing_unpacking():
     cli_args = ['-abc']
     parsed = QuickParse(cli_args=cli_args)
     assert tuple(parsed.commands) == tuple()
     assert tuple(parsed.parameters) == tuple()
     assert parsed.options == {'-a': True, '-b': True, '-c': True}
+    assert parsed.numeric == None
+    assert parsed.plusnumeric == None
+    assert parsed.to_execute == None
+    assert len(parsed.errors) == 0
+
+def test_stacked_processing_unpacking():
+    cli_args = '-abc -xyz'.split()
+    parsed = QuickParse(cli_args=cli_args)
+    assert tuple(parsed.commands) == tuple()
+    assert tuple(parsed.parameters) == tuple()
+    assert parsed.options == {'-a': True, '-b': True, '-c': True, '-x': True, '-y': True, '-z': True}
+    assert parsed.numeric == None
+    assert parsed.plusnumeric == None
+    assert parsed.to_execute == None
+    assert len(parsed.errors) == 0
+    cli_args = '-abc -abc'.split()
+    parsed = QuickParse(cli_args=cli_args)
+    assert tuple(parsed.commands) == tuple()
+    assert tuple(parsed.parameters) == tuple()
+    assert parsed.options == {'-a': (True, True), '-b': (True, True), '-c': (True, True)}
     assert parsed.numeric == None
     assert parsed.plusnumeric == None
     assert parsed.to_execute == None
