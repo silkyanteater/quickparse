@@ -1,5 +1,6 @@
 import inspect
 import re
+from collections.abc import Sequence
 
 
 option_key_re = re.compile(r'^(-[a-zA-Z][a-zA-Z\-]*|--[a-zA-Z][a-zA-Z\-]*|\+[a-zA-Z][a-zA-Z\-]*)$')
@@ -192,3 +193,6 @@ def expand_commands_config_keys(commands_config_level):
         else:
             deep_expanded_commands_config[key] = value
     return deep_expanded_commands_config
+
+def is_non_stringlike_sequence(item):
+    return isinstance(item, Sequence) and not isinstance(item, (str, bytes))
